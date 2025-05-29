@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>海边日出动画</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(to bottom, #0c1a3a, #1d4a7a);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            color: #fff;
+            overflow: hidden;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 900px;
+            text-align: center;
+            padding: 20px;
+            position: relative;
+        }
+        
+        .header {
+            margin-bottom: 20px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            animation: fadeIn 2s ease;
+        }
+        
+        h1 {
+            font-size: 3.2rem;
+            font-weight: 300;
+            letter-spacing: 3px;
+            margin-bottom: 10px;
+            background: linear-gradient(to right, #ff7e5f, #feb47b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.8;
+            font-weight: 300;
+        }
+        
+        .canvas-container {
+            position: relative;
+            width: 800px;
+            height: 500px;
+            margin: 0 auto;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            animation: fadeIn 1.5s ease;
+        }
+        
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .controls {
+            position: absolute;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            display: flex;
+            gap: 20px;
+        }
+        
+        #pauseBtn {
+            background: rgba(255, 255, 255, 0.15);
+            border: none;
+            border-radius: 50px;
+            padding: 14px 45px;
+            color: white;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            min-width: 180px;
+            font-weight: 500;
+            letter-spacing: 1px;
+        }
+        
+        #pauseBtn:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            z-index: 10;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .footer {
+            margin-top: 30px;
+            opacity: 0.7;
+            font-size: 0.9rem;
+            text-align: center;
+            animation: fadeIn 3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @media (max-width: 850px) {
+            .canvas-container {
+                width: 95vw;
+                height: 400px;
+            }
+            
+            h1 {
+                font-size: 2.2rem;
+            }
+            
+            .subtitle {
+                font-size: 1rem;
+            }
+            
+            #pauseBtn {
+                padding: 12px 35px;
+                min-width: 150px;
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>海边日出</h1>
+        </div>
+        
+        <div class="canvas-container">
+            <canvas id="sunriseCanvas"></canvas>
+            <div class="info">太阳高度: <span id="sunPosition">0%</span></div>
+            <div class="controls">
+                <button id="pauseBtn">暂停动画</button>
+            </div>
+        </div>
+        
+  
+    </div>
+
+    <script>
+        const canvas = document.getElementById('sunriseCanvas');
+        const ctx = canvas.getContext('2d');
+        const sunPositionDisplay = document.getElementById('sunPosition');
+        const pauseBtn = document.getElementById('pauseBtn');
+
+        // 设置Canvas尺寸
+        function resizeCanvas() {
+            const container = document.querySelector('.canvas-container');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+        
+        // 初始化尺寸
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // 动画状态
+        let animationId = null;
+        let isPaused = false;
+        let sunProgress = 0; // 0-100 表示太阳升起进度
+
+        // 波浪数据
+        const waves = [];
+        for (let i = 0; i < 25; i++) {
+            waves.push({
+                x: Math.random() * canvas.width,
+                y: canvas.height * 0.7 + Math.random() * 20,
+                width: 15 + Math.random() * 35,
+                speed: 0.3 + Math.random() * 1.0,
+                opacity: 0.1 + Math.random() * 0.2
+            });
+        }
+
+        // 绘制函数
+        function drawSunrise() {
+            // 清除画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 天空渐变 - 随太阳高度变化
+            const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.7);
+            const skyDark = `rgb(15, 30, 60)`;
+            const skyMid = `rgb(30, 70, 120)`;
+            const skyLight = `rgb(${120 + sunProgress * 1.2}, ${90 + sunProgress * 0.8}, ${200 - sunProgress * 0.4})`;
+            const skySunrise = `rgb(${220 + sunProgress * 0.3}, ${120 + sunProgress * 0.7}, ${60})`;
+            
+            skyGradient.addColorStop(0, skyDark);
+            skyGradient.addColorStop(0.5 - sunProgress/300, skyMid);
+            skyGradient.addColorStop(0.7 - sunProgress/200, skyLight);
+            skyGradient.addColorStop(1, skySunrise);
+            
+            ctx.fillStyle = skyGradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height * 0.7);
+            
+            // 海洋 - 与天空明显区分
+            const seaGradient = ctx.createLinearGradient(0, canvas.height * 0.7, 0, canvas.height);
+            seaGradient.addColorStop(0, `rgba(10, 40, 80, ${0.8 + sunProgress/150})`);
+            seaGradient.addColorStop(1, `rgba(5, 20, 40, 1)`);
+            
+            ctx.fillStyle = seaGradient;
+            ctx.fillRect(0, canvas.height * 0.7, canvas.width, canvas.height * 0.3);
+            
+            // 绘制波浪
+            for (let i = 0; i < waves.length; i++) {
+                const wave = waves[i];
+                ctx.beginPath();
+                ctx.arc(wave.x, wave.y, wave.width/2, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 220, 150, ${wave.opacity + sunProgress/300})`;
+                ctx.fill();
+                
+                // 移动波浪
+                if (!isPaused) {
+                    wave.x += wave.speed;
+                    if (wave.x > canvas.width + wave.width) {
+                        wave.x = -wave.width;
+                        wave.y = canvas.height * 0.7 + Math.random() * 20;
+                    }
+                }
+            }
+            
+            // 计算太阳位置
+            const sunX = canvas.width / 2;
+            const sunY = canvas.height * 0.7 - (canvas.height * 0.6 * sunProgress / 100);
+            const sunRadius = 25 + sunProgress/15;
+            
+            // 绘制太阳 - 缩小颜色范围
+            const sunGradient = ctx.createRadialGradient(
+                sunX, sunY, 0,
+                sunX, sunY, sunRadius * 1.5
+            );
+            sunGradient.addColorStop(0, `rgba(255, 255, 220, 1)`);
+            sunGradient.addColorStop(0.7, `rgba(255, ${160 - sunProgress/3}, 40, 0.9)`);
+            sunGradient.addColorStop(1, `rgba(255, 120, 30, 0)`);
+            
+            ctx.beginPath();
+            ctx.arc(sunX, sunY, sunRadius * 1.5, 0, Math.PI * 2);
+            ctx.fillStyle = sunGradient;
+            ctx.fill();
+            
+            // 绘制太阳核心
+            ctx.beginPath();
+            ctx.arc(sunX, sunY, sunRadius, 0, Math.PI * 2);
+            ctx.fillStyle = `rgb(255, ${200 - sunProgress/2}, 50)`;
+            ctx.fill();
+            
+            // 绘制太阳在水中的倒影
+            if (sunProgress > 5) {
+                const reflectionHeight = canvas.height * 0.7 - sunY;
+                const reflectionY = canvas.height * 0.7 + reflectionHeight;
+                
+                ctx.save();
+                ctx.globalAlpha = 0.4 - sunProgress/300;
+                ctx.beginPath();
+                ctx.ellipse(sunX, reflectionY, sunRadius * 1.2, sunRadius * 0.4, 0, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 200, 100, 0.5)`;
+                ctx.fill();
+                ctx.restore();
+            }
+            
+            // 绘制海平线 - 加强区分
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height * 0.7);
+            ctx.lineTo(canvas.width, canvas.height * 0.7);
+            ctx.strokeStyle = `rgba(255, 255, 255, ${0.2 + sunProgress/150})`;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // 绘制太阳光晕
+            if (sunProgress > 20) {
+                ctx.save();
+                ctx.globalAlpha = 0.2;
+                ctx.beginPath();
+                ctx.arc(sunX, sunY, sunRadius * 3, 0, Math.PI * 2);
+                const radialGradient = ctx.createRadialGradient(
+                    sunX, sunY, sunRadius * 1.2,
+                    sunX, sunY, sunRadius * 3
+                );
+                radialGradient.addColorStop(0, "rgba(255, 200, 100, 0.8)");
+                radialGradient.addColorStop(1, "rgba(255, 200, 100, 0)");
+                ctx.fillStyle = radialGradient;
+                ctx.fill();
+                ctx.restore();
+            }
+            
+            // 更新太阳位置显示
+            sunPositionDisplay.textContent = Math.round(sunProgress) + '%';
+            
+            // 更新太阳进度
+            if (!isPaused) {
+                sunProgress += 0.08;
+                
+                // 当太阳完全升起时重置进度
+                if (sunProgress >= 100) {
+                    sunProgress = 0;
+                    
+                    // 重置波浪位置
+                    for (let i = 0; i < waves.length; i++) {
+                        waves[i].x = Math.random() * canvas.width;
+                        waves[i].y = canvas.height * 0.7 + Math.random() * 20;
+                    }
+                }
+            }
+        }
+
+        // 动画循环
+        function animate() {
+            drawSunrise();
+            animationId = requestAnimationFrame(animate);
+        }
+
+        // 初始化
+        function init() {
+            sunProgress = 0;
+            isPaused = false;
+            pauseBtn.textContent = "暂停动画";
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+            animate();
+        }
+
+        // 事件监听
+        pauseBtn.addEventListener('click', () => {
+            isPaused = !isPaused;
+            pauseBtn.textContent = isPaused ? "播放动画" : "暂停动画";
+        });
+
+        // 开始动画
+        init();
+    </script>
+</body>
+</html>
